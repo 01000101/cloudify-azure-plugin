@@ -121,10 +121,6 @@ class OAuth2(object):
             except ValueError:
                 raise exceptions.UnexpectedResponse(
                     'Malformed, non-JSON response data')
-        self.log.debug('Access token request response: '
-                       '(status={0}, data={1})'.format(
-                           res.status_code,
-                           json.dumps(data, indent=2)))
         # Check for 401 Unauthorized
         if res.status_code == 401:
             # We received an explicit credentials rejection

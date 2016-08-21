@@ -5,7 +5,7 @@
 plugins:
   pkg:
     executor: central_deployment_agent
-    source: https://github.com/01000101/cloudify-azure-plugin/archive/scaling.zip
+    source: ../../../
     package_name: cloudify-azure-plugin
     package_version: '1.4'
 
@@ -425,6 +425,52 @@ node_types:
       cloudify.interfaces.lifecycle:
         create: pkg.cloudify_azure.resources.storage.storageaccount.create
         delete: pkg.cloudify_azure.resources.storage.storageaccount.delete
+        
+  cloudify.azure.nodes.storage.Disk:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        type: string
+        description: >
+          Name for the resource.
+        required: false
+      location:
+        type: string
+        description: >
+          Specifies the supported Azure location for the resource
+        required: false
+      use_external_resource:
+        description: >
+          Indicate whether the resource exists or if Cloudify should create the resource
+        type: boolean
+        default: false
+        required: true
+      retry_after:
+        description: >
+          Overrides the Azure-specified "retry_after" response. This property
+          will set the number of seconds for each task retry interval (in the
+          case of iteratively checking the status of an asynchronous operation)
+        type: integer
+        required: false
+      disk_size:
+        description: >
+          Size of the Page Blob (Azure disk) in GiB. Maximum of 1023 GiB allowed.
+        default: 20
+        required: true
+      disk_lun:
+        description: >
+          Specifies the logical unit number of the data disk.
+        default: 0
+        required: true
+      azure_config:
+        description: >
+          A dictionary of values to pass to authenticate with the Azure API
+        type: cloudify.datatypes.azure.Config
+        required: false
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create: pkg.cloudify_azure.resources.storage.blob.create_disk
+        delete: pkg.cloudify_azure.resources.storage.blob.delete_disk
         
   cloudify.azure.nodes.network.VirtualNetwork:
     derived_from: cloudify.nodes.Root
@@ -1393,6 +1439,9 @@ node_types:
 relationships:
   cloudify.azure.relationships.contained_in_resource_group:
     derived_from: cloudify.relationships.contained_in
+    
+  cloudify.azure.relationships.contained_in_storage_account:
+    derived_from: cloudify.relationships.contained_in
   
   cloudify.azure.relationships.contained_in_virtual_network:
     derived_from: cloudify.relationships.contained_in
@@ -1437,6 +1486,13 @@ relationships:
     
   cloudify.azure.relationships.connected_to_storage_account:
     derived_from: cloudify.relationships.connected_to
+    
+  cloudify.azure.relationships.connected_to_data_disk:
+    derived_from: cloudify.relationships.connected_to
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        establish: pkg.cloudify_azure.resources.compute.virtualmachine.attach_disk
+        unlink: pkg.cloudify_azure.resources.compute.virtualmachine.detach_disk
     
   cloudify.azure.relationships.connected_to_nic:
     derived_from: cloudify.relationships.connected_to

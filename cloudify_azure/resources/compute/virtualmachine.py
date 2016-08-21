@@ -21,7 +21,8 @@
 # Deep object copying
 from copy import deepcopy
 # Random string
-import random, string
+import random
+import string
 # Node properties and logger
 from cloudify import ctx
 # Life-cycle operation decorator
@@ -39,6 +40,8 @@ from cloudify_azure.resources.compute.availabilityset \
     import AvailabilitySet
 from cloudify_azure.resources.compute.virtualmachineextension \
     import VirtualMachineExtension
+from cloudify_azure.resources.storage.blob \
+    import Blob
 
 
 class VirtualMachine(Resource):
@@ -291,3 +294,51 @@ def delete(**_):
     # Delete the resource
     utils.task_resource_delete(
         VirtualMachine())
+
+
+@operation
+def attach_disk(**_):
+    '''Attaches a data disk'''
+    vm_iface = VirtualMachine(_ctx=ctx.source)
+    vm_state = vm_iface.get(name=utils.get_resource_name(_ctx=ctx.source))
+    data_disks = vm_state.get(
+        'properties', dict()).get(
+            'storageProfile', dict()).get(
+                'dataDisks', list())
+    # Add the disk to the list
+    data_disks.append({
+        'name': utils.get_resource_name(_ctx=ctx.target),
+        'lun': ctx.target.node.properties['disk_lun'],
+        'vhd': {
+            'uri': ctx.target.instance.runtime_properties['uri']
+        },
+        'createOption': 'attach'
+    })
+    ctx.logger.info('async_op: {0}'.format(
+        ctx.source.instance.runtime_properties.get('async_op')))
+    # Update the VM
+    utils.task_resource_update(
+        VirtualMachine(_ctx=ctx.source),
+        {
+            'location': ctx.source.node.properties.get('location'),
+            'properties': {
+                'storageProfile': {
+                    'dataDisks': data_disks
+                }
+            }
+        },
+        force=True,
+        _ctx=ctx.source
+    )
+
+
+@operation
+def detach_disk(**_):
+    '''Detaches a data disk'''
+    vm_iface = VirtualMachine(_ctx=ctx.source)
+    vm_state = vm_iface.get(name=utils.get_resource_name(_ctx=ctx.source))
+    data_disks = vm_state.get(
+        'properties', dict()).get(
+            'storageProfile', dict()).get(
+                'dataDisks', list())
+    ctx.logger.debug('data_disks: {0}'.format(data_disks))

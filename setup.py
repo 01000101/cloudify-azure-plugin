@@ -32,6 +32,7 @@ setup(
     install_requires=[
         'cloudify-plugins-common>=3.3.1',
         'requests',
-        'pyyaml==3.10'
+        'pyyaml==3.10',
+        'xmltodict'
     ]
 )

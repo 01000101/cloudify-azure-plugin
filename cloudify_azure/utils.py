@@ -24,6 +24,8 @@ from copy import deepcopy
 from os import path, environ
 # Dict updating
 from collections import Mapping
+# Time format
+from datetime import datetime
 # UUID
 from uuid import uuid4
 # Config parser
@@ -124,6 +126,7 @@ def generate_resource_name(resource, generator=None, name=None, _ctx=ctx):
 
 def task_resource_update(resource, params,
                          name=None, use_external=None,
+                         force=False,
                          _ctx=ctx):
     '''
         Updates an existing Microsoft Azure resource and
@@ -150,7 +153,7 @@ def task_resource_update(resource, params,
         return resource.operation_complete(
             _ctx.instance.runtime_properties.get('async_op'))
     # Update an existing resource
-    resource.update(name, params)
+    resource.update(name, params, force=force)
 
 
 def task_resource_delete(resource, name=None,
@@ -222,6 +225,20 @@ def get_resource_group(_ctx=ctx):
     return _ctx.node.properties.get('resource_group_name') or \
         get_ancestor_name(
             _ctx.instance, constants.REL_CONTAINED_IN_RG)
+
+
+def get_storage_account(_ctx=ctx):
+    '''
+        Finds the Storage Account associated with the current node. This
+        method searches both by node properties (priority) or by
+        node relationships
+
+    :returns: Storage Account name
+    :rtype: string
+    '''
+    return _ctx.node.properties.get('storage_account_name') or \
+        get_ancestor_name(
+            _ctx.instance, constants.REL_CONTAINED_IN_SA)
 
 
 def get_virtual_network(_ctx=ctx):
@@ -653,3 +670,11 @@ def secure_logging_content(content, secure_keywords=constants.SECURE_KW):
 
     content_copy = deepcopy(content)
     return clean(content_copy)
+
+
+def get_rfc1123_date():
+    '''
+        Azure Storage headers use RFC 1123 for date representation.
+        See https://msdn.microsoft.com/en-us/library/azure/dd135714.aspx
+    '''
+    return datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT')
