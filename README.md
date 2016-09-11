@@ -2,6 +2,20 @@
 
 ## Examples
 
+### grid-compute
+
+This blueprint is used to demonstrate deploying several virtual machines
+within a single storage account which then execute a simple Python task. Multiple deployments of this application can be used to create thousands of VMs without running into performance or Azure limits (too many VMs / disks per storage account, for instance). By default, this blueprint is set to deploy 10 VMs but is adjustable by input.
+
+```bash
+# Upload the blueprint to a manager
+cfy blueprints upload -p "examples/grid-compute/grid-compute.yaml" -b gc01
+# Create a deployment (blueprint instance)
+cfy deployments create -d gc01 -b gc01 -i "{path/to/inputs.yaml}"
+# Execute the deployment
+cfy executions start -w install -d iis01 -l
+```
+
 ### linux-nodecellar
 
 This example blueprint shows how to deploy the classic Nodecellar application by Cloudify. This is a 2-tier application (front-end web application and a back-end database server) with support for front-end horizontal scaling. Since a Cloudify agent is required to be installed for monitoring, this blueprint requires a manager already exist in Azure and a few inputs connecting this deployment to the manager's virtual network (so they can communicate for agent installation).
@@ -13,8 +27,8 @@ cfy blueprints upload -p "examples/linux-nodecellar/linux-nodecellar.yaml" -b nc
 cfy deployments create -d nc01 -b nc01 -i "{path/to/inputs.yaml}"
 # Execute the deployment
 cfy executions start -w install -d nc01 -l
-# Scale up by 2 front-end nodes
-cfy executions start -w scale -p '{"delta": 2, "scalable_entity_name": "frontend"}' -d nc01 -l
+# Scale to 2 front-end nodes
+cfy executions start -w scale -p '{"delta": 2, "scalable_entity_name": "frontend"}' -d nc01
 ```
 
 ### local-data-disks
@@ -39,8 +53,8 @@ cfy blueprints upload -p "examples/windows-iis-loadbalanced/windows-iis-loadbala
 cfy deployments create -d iis01 -b iis01 -i "{path/to/inputs.yaml}"
 # Execute the deployment
 cfy executions start -w install -d iis01 -l
-# Scale up by 3 nodes
-cfy executions start -w scale -p '{"delta": 3, "scalable_entity_name": "frontend"}' -d iis01 -l
+# Scale to 3 nodes
+cfy executions start -w scale -p '{"delta": 3, "scalable_entity_name": "frontend"}' -d iis01
 ```
 
 ### manager
@@ -57,3 +71,4 @@ This is the Cloudify manager bootstrap blueprint (and resources). It can be copi
 * Improved scaling support (see the *linux-nodecellar* example blueprint).
 * Updated *linux-nodecellar* and *windows-iis-loadbalanced* example blueprints.
 * Added *local-data-disks* example blueprint to demonstrate using the new DataDisk and FileShare types.
+

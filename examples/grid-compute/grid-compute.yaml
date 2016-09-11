@@ -1,0 +1,283 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+description: >
+  This blueprint is used for spinning up large quantities of
+  Windows Server VMs and executing a simple task
+
+imports:
+- http://www.getcloudify.org/spec/cloudify/3.4/types.yaml
+- https://raw.githubusercontent.com/01000101/cloudify-azure-plugin/grid-compute/plugin.yaml
+
+
+inputs:
+  resource_prefix:
+    default: cfy
+  resource_suffix:
+    default: 1
+  # Azure account information
+  subscription_id:
+    type: string
+    required: true
+  tenant_id:
+    type: string
+    required: true
+  client_id:
+    type: string
+    required: true
+  client_secret:
+    type: string
+    required: true
+  location:
+    type: string
+    required: true
+    default: eastus
+  retry_after:
+    type: integer
+    default: 45
+  # Existing manager resources
+  manager_resource_group_name:
+    type: string
+    required: true
+  manager_virtual_network_name:
+    type: string
+    required: true
+  manager_subnet_name:
+    type: string
+    required: true
+  # Virtual Machine information
+  vm_size: 
+    type: string
+    required: true
+    default: Standard_A2
+  vm_os_family:
+    type: string
+    required: true
+    default: windows
+  vm_image_publisher: 
+    type: string
+    required: true
+    default: MicrosoftWindowsServer
+  vm_image_offer: 
+    type: string
+    required: true
+    default: WindowsServer
+  vm_image_sku:
+    type: string
+    required: true
+    default: 2012-R2-Datacenter
+  vm_image_version:
+    type: string
+    required: true
+    default: latest
+  vm_os_username:
+    description: >
+      Username to create as the VM's administrator user
+    type: string
+    required: true
+    default: cloudify
+  vm_os_password:
+    description: >
+      Password to use for the VM's administrator user
+    type: string
+    required: true
+    default: Cl0ud1fy!
+  # The count of VMs to initially create on install
+  initial_scale_count:
+    default: 10
+
+dsl_definitions:
+  azure_config: &azure_config
+    subscription_id: { get_input: subscription_id }
+    tenant_id: { get_input: tenant_id }
+    client_id: { get_input: client_id }
+    client_secret: { get_input: client_secret }
+    
+
+node_templates:
+
+  ######################
+  # Existing resources #
+  ######################
+  manager_resource_group:
+    type: cloudify.azure.nodes.ResourceGroup
+    properties:
+      name: { get_input: manager_resource_group_name }
+      use_external_resource: true
+      location: { get_input: location }
+      azure_config: *azure_config
+  
+  manager_virtual_network:
+    type: cloudify.azure.nodes.network.VirtualNetwork
+    properties:
+      name: { get_input: manager_virtual_network_name }
+      use_external_resource: true
+      location: { get_input: location }
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: manager_resource_group
+
+  manager_subnet:
+    type: cloudify.azure.nodes.network.Subnet
+    properties:
+      name: { get_input: manager_subnet_name }
+      use_external_resource: true
+      location: { get_input: location }
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_virtual_network
+      target: manager_virtual_network
+  
+  
+  #################
+  # New resources #
+  #################
+  resource_group:
+    type: cloudify.azure.nodes.ResourceGroup
+    properties:
+      name: {concat:[{get_input: resource_prefix},rg,{get_input: resource_suffix}]}
+      location: { get_input: location }
+      azure_config: *azure_config
+      
+  storage_account:
+    type: cloudify.azure.nodes.storage.StorageAccount
+    properties:
+      location: { get_input: location }
+      azure_config: *azure_config
+      retry_after: { get_input: retry_after }
+      resource_config:
+        accountType: Standard_LRS
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+  
+  network_security_group:
+    type: cloudify.azure.nodes.network.NetworkSecurityGroup
+    properties:
+      location: { get_input: location }
+      retry_after: { get_input: retry_after }
+      resource_config:
+        securityRules:
+        - name: nsr_rdp
+          properties:
+            description: RDP access
+            protocol: Tcp
+            sourcePortRange: '*'
+            destinationPortRange: 3389
+            sourceAddressPrefix: '*'
+            destinationAddressPrefix: '*'
+            priority: 100
+            access: Allow
+            direction: Inbound
+        - name: nsr_winrm
+          properties:
+            description: WinRM access
+            protocol: Tcp
+            sourcePortRange: '*'
+            destinationPortRange: 5985-5986
+            sourceAddressPrefix: '*'
+            destinationAddressPrefix: '*'
+            priority: 200
+            access: Allow
+            direction: Inbound
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  availability_set:
+    type: cloudify.azure.nodes.compute.AvailabilitySet
+    properties:
+      location: { get_input: location }
+      retry_after: { get_input: retry_after }
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+
+  vm:
+    type: cloudify.azure.nodes.compute.VirtualMachine
+    properties:
+      location: { get_input: location }
+      retry_after: { get_input: retry_after }
+      os_family: { get_input: vm_os_family }
+      resource_config:
+        hardwareProfile:
+          vmSize: { get_input: vm_size }
+        storageProfile:
+          imageReference:
+            publisher: { get_input: vm_image_publisher }
+            offer: { get_input: vm_image_offer }
+            sku: { get_input: vm_image_sku }
+            version: { get_input: vm_image_version }
+        osProfile:
+          adminUsername: { get_input: vm_os_username }
+          adminPassword: { get_input: vm_os_password }
+      agent_config:
+        user: { get_input: vm_os_username }
+        password: { get_input: vm_os_password }
+        install_method: remote
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.connected_to_storage_account
+      target: storage_account
+    - type: cloudify.azure.relationships.connected_to_availability_set
+      target: availability_set
+    - type: cloudify.azure.relationships.connected_to_nic
+      target: vm_nic
+     
+  vm_nic_ip_cfg:
+    type: cloudify.azure.nodes.network.IPConfiguration
+    properties:
+      location: { get_input: location }
+      retry_after: { get_input: retry_after }
+      resource_config:
+        privateIPAllocationMethod: Dynamic
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.ip_configuration_connected_to_subnet
+      target: manager_subnet
+   
+  vm_nic:
+    type: cloudify.azure.nodes.network.NetworkInterfaceCard
+    properties:
+      location: { get_input: location }
+      retry_after: { get_input: retry_after }
+      azure_config: *azure_config
+    relationships:
+    - type: cloudify.azure.relationships.contained_in_resource_group
+      target: resource_group
+    - type: cloudify.azure.relationships.nic_connected_to_network_security_group
+      target: network_security_group
+    - type: cloudify.azure.relationships.nic_connected_to_ip_configuration
+      target: vm_nic_ip_cfg
+      
+  vm_test_app:
+    type: cloudify.nodes.ApplicationModule
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start: scripts/configure.py
+    relationships:
+    - type: cloudify.relationships.contained_in
+      target: vm
+
+
+groups:
+  frontend:
+    members:
+    - vm
+    - vm_nic
+    - vm_nic_ip_cfg
+    - vm_test_app
+
+policies:
+  scale_policy1:
+    type: cloudify.policies.scaling
+    properties:
+      default_instances: { get_input: initial_scale_count }
+    targets: [frontend]
+    
