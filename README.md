@@ -13,7 +13,7 @@ cfy blueprints upload -p "examples/grid-compute/grid-compute.yaml" -b gc01
 # Create a deployment (blueprint instance)
 cfy deployments create -d gc01 -b gc01 -i "{path/to/inputs.yaml}"
 # Execute the deployment
-cfy executions start -w install -d iis01 -l
+cfy executions start -w install -d gc01 -l
 ```
 
 ### linux-nodecellar
